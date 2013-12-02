@@ -1,0 +1,52 @@
+<package>
+  <name>rtk_ros</name>
+  <version>1.0.0</version>
+  <description>
+	ROS wrapper for rtklib.
+</description>
+  <maintainer email="goncabrita@gmail.com">Gonçalo Cabrita</maintainer>
+
+  <license>BSD</license>
+
+  <url type="website">http://ros.org/wiki/rtk_ros</url>
+  <!-- <url type="bugtracker"></url> -->
+
+  <author>Gonçalo Cabrita</author>
+  <author>Jorge Fraga</author>
+
+  <!-- Dependencies which this package needs to build itself. -->
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <!-- Dependencies needed to compile this package. -->
+  <build_depend>roscpp</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>rtk_msgs</build_depend>
+  <build_depend>rtklib</build_depend>
+  <build_depend>cereal_port</build_depend>
+  <build_depend>angles</build_depend>
+
+  <!-- Dependencies needed after this package is compiled. -->
+  <run_depend>roscpp</run_depend>
+  <run_depend>sensor_msgs</run_depend>
+  <run_depend>std_msgs</run_depend>
+  <run_depend>rtk_msgs</run_depend>
+  <run_depend>rtklib</run_depend>
+  <run_depend>cereal_port</run_depend>
+  <run_depend>angles</run_depend>
+
+  <!-- Dependencies needed only for running tests. -->
+  <!-- <test_depend>roscpp</test_depend> -->
+  <!-- <test_depend>sensor_msgs</test_depend> -->
+  <!-- <test_depend>std_msgs</test_depend> -->
+  <!-- <test_depend>rtk_msgs</test_depend> -->
+  <!-- <test_depend>rtklib</test_depend> -->
+  <!-- <test_depend>cereal_port</test_depend> -->
+  <!-- <test_depend>angles</test_depend> -->
+
+<export>
+    <rosdoc config="rosdoc.yaml"/>
+</export>
+
+</package>
+

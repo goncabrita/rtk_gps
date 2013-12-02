@@ -1,0 +1,14 @@
+<launch>
+
+  <node name="rtk_robot_node" pkg="rtk_ros" type="rtk_robot_node" output="screen" >
+	<param name="port" value="ttyACM0"/>
+	<param name="base_x" value="4826876.81228978 "/>
+	<param name="base_y" value="-714339.210377238 "/>
+	<param name="base_z" value="4093920.99518662"/>
+ </node>
+
+ <node name="rtk_base_station_node" pkg="rtk_ros" type="rtk_base_station_node" output="screen" >
+	<param name="port" value="/dev/ttyACM1"/>
+</node>
+
+</launch>

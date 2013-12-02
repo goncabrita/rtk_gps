@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package>
+  <name>rtk_gps</name>
+  <version>0.0.0</version>
+  <description>The rtk_gps package</description>
+
+  <maintainer email="goncabrita@gmail.com">Gonçalo Cabrita</maintainer>
+
+  <license>BSD</license>
+
+  <url type="website">http://ros.org/wiki/rtk_gps</url>
+
+  <author>Gonçalo Cabrita</author>
+  <author>Jorge Fraga</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <run_depend>rtk_msgs</run_depend>
+  <run_depend>rtk_ros</run_depend>
+  <run_depend>rtklib</run_depend>
+
+  <export>
+    <metapackage/> 
+  </export>
+</package>
