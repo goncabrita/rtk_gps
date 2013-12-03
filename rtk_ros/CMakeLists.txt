@@ -61,7 +61,7 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-include_directories(include ${rtklib_INCLUDE_DIRS} ${cereal_port_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
+include_directories(include ${catkin_INCLUDE_DIRS} ${rtklib_INCLUDE_DIRS} ${cereal_port_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 
 ## Declare a cpp library
 # add_library(rtk_ros src/rtk_ros.cpp )
