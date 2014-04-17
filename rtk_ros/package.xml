@@ -25,7 +25,8 @@
   <build_depend>rtklib</build_depend>
   <build_depend>cereal_port</build_depend>
   <build_depend>angles</build_depend>
-
+  <build_depend>nav_msgs</build_depend>
+  
   <!-- Dependencies needed after this package is compiled. -->
   <run_depend>roscpp</run_depend>
   <run_depend>sensor_msgs</run_depend>
@@ -34,7 +35,8 @@
   <run_depend>rtklib</run_depend>
   <run_depend>cereal_port</run_depend>
   <run_depend>angles</run_depend>
-
+  <run_depend>nav_msgs</run_depend>
+  
   <!-- Dependencies needed only for running tests. -->
   <!-- <test_depend>roscpp</test_depend> -->
   <!-- <test_depend>sensor_msgs</test_depend> -->

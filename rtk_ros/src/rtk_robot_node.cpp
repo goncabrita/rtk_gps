@@ -38,9 +38,12 @@
 #include <rtklib/rtklib.h>
 #include <ros/ros.h>
 #include <sensor_msgs/NavSatFix.h>
+#include <nav_msgs/Odometry.h>
 #include <std_msgs/ByteMultiArray.h>
 #include <rtk_msgs/Status.h>
 #include <rtk_msgs/ECEFCoordinates.h>
+#include <rtk_ros/UTMConversion.h>
+#include <angles/angles.h>s
 
 #define BUFFSIZE 32768
 
@@ -325,6 +328,7 @@ int main(int argc,char **argv)
 
     ros::Publisher gps_pub = nn.advertise<sensor_msgs::NavSatFix>("gps/fix", 50);
     ros::Publisher status_pub = nn.advertise<rtk_msgs::Status>("gps/status", 50);
+    ros::Publisher odom_pub = nn.advertise<nav_msgs::Odometry>("gps/odom", 50);
 
     ros::Subscriber gps_sub = nn.subscribe("base_station/gps/raw_data", 50, baseStationCallback);
 
@@ -531,12 +535,18 @@ int main(int argc,char **argv)
             rtkpos(&server.rtk, obs.data, obs.n, &server.nav);
             rtksvrunlock(&server);
 
+            ros::Time now = ros::Time::now();
+
             sensor_msgs::NavSatFix gps_msg;
-            gps_msg.header.stamp = ros::Time::now();
+            gps_msg.header.stamp = now;
             gps_msg.header.frame_id = gps_frame_id;
 
             rtk_msgs::Status status_msg;
-            status_msg.stamp = gps_msg.header.stamp;
+            status_msg.stamp = now;
+
+            nav_msgs::Odometry odom_msg;
+            odom_msg.header.stamp = now;
+            odom_msg.header.frame_id = gps_frame_id;
 
             if(server.rtk.sol.stat != SOLQ_NONE)
             {
@@ -573,8 +583,24 @@ int main(int argc,char **argv)
                     gps_msg.status.status = Q==5 ? sensor_msgs::NavSatStatus::STATUS_FIX : sensor_msgs::NavSatStatus::STATUS_GBAS_FIX;
                     gps_msg.status.service = sensor_msgs::NavSatStatus::SERVICE_GPS;
 
-		    status_msg.fix_quality = Q;
-		    status_msg.number_of_satellites = nsat;
+                    status_msg.fix_quality = Q;
+                    status_msg.number_of_satellites = nsat;
+
+                    double easting, northing;
+                    char zone_letter;
+                    int zone_number;
+
+                    GPStoUTM(angles::from_degrees(lat), angles::from_degrees(longi), northing, easting, zone_number, zone_letter);
+
+                    odom_msg.pose.pose.position.x = easting;
+                    odom_msg.pose.pose.position.y = northing;
+                    odom_msg.pose.pose.position.z = alt;
+                    odom_msg.pose.pose.orientation.w = 1;
+                    odom_msg.pose.pose.orientation.x = 0;
+                    odom_msg.pose.pose.orientation.y = 0;
+                    odom_msg.pose.pose.orientation.z = 0;
+
+                    odom_pub.publish(odom_msg);
                 }
             }
             else
@@ -586,7 +612,7 @@ int main(int argc,char **argv)
 
             ROS_DEBUG("RTK -- Publishing ROS msg...");
             gps_pub.publish(gps_msg);
-	    status_pub.publish(status_msg);
+            status_pub.publish(status_msg);
         }
 
         ros::spinOnce();

@@ -438,6 +438,12 @@ int main(int argc,char **argv)
 
     ROS_DEBUG("RTK -- Initialization complete.");
 
+    double geodetic[3];
+    geodetic[0] = 0.0;
+    geodetic[1] = 0.0;
+    geodetic[2] = 0.0;
+    unsigned long n_of_samples = 0;
+
     ros::Rate r(rate);
     while(ros::ok())
     {
@@ -511,10 +517,11 @@ int main(int argc,char **argv)
                     sscanf((const char *)(buff),"%d/%d/%d %d:%d:%lf %lf %lf %lf %d %d %lf %lf %lf %lf %lf %lf", &ano, &mes, &dia, &horas, &minutos, &segundos, &lat, &longi, &alt, &Q, &nsat, &sdn, &sde, &sdu, &sdne, &sdeu, &sdun);
 
                     //convert to ECEF and fill ECEF message
-                    double geodetic[3], ecef[3];
-                    geodetic[0] = angles::from_degrees(lat);
-                    geodetic[1] = angles::from_degrees(longi);
-                    geodetic[2] = alt;
+                    double ecef[3];
+                    n_of_samples++;
+                    geodetic[0] = double((n_of_samples-1)/n_of_samples)*geodetic[0] + angles::from_degrees(lat)/n_of_samples;
+                    geodetic[1] = double((n_of_samples-1)/n_of_samples)*geodetic[1] + angles::from_degrees(longi)/n_of_samples;
+                    geodetic[2] = double((n_of_samples-1)/n_of_samples)*geodetic[2] + alt/n_of_samples;
 
                     pos2ecef(geodetic, ecef);
 
