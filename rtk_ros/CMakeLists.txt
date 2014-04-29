@@ -50,7 +50,7 @@ find_package(Boost REQUIRED COMPONENTS thread)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
-#  LIBRARIES rtk_ros
+  LIBRARIES UTMConverter
 #  CATKIN_DEPENDS other_catkin_pkg
 #  DEPENDS system_lib
 )
