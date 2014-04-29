@@ -51,7 +51,7 @@
 
 #define DLL
 
-#define MAX_MEDIAN_VECTOR_SIZE  1024
+/*#define MAX_MEDIAN_VECTOR_SIZE  1024
 
 double median(std::vector<double> *values, double new_value=0.0)
 {
@@ -105,7 +105,7 @@ double median(std::vector<double> *values, double new_value=0.0)
   }
 
   return median;
-}
+}*/
 
 
 rtksvr_t server;
@@ -332,6 +332,9 @@ int main(int argc,char **argv)
     std::string base_station_frame_id;
     pn.param<std::string>("base_station_frame_id", base_station_frame_id, "base_station/gps");
 
+    double a;
+    pn.param("filter_coefficient", a, 0.2);
+
     ros::Publisher ecef_pub = nn.advertise<rtk_msgs::ECEFCoordinates>("base_station/gps/ecef", 50);
     ros::Publisher utm_pub = nn.advertise<rtk_msgs::UTMCoordinates>("base_station/gps/utm",50);
     ros::Publisher status_pub = nn.advertise<rtk_msgs::Status>("base_station/gps/status",50);
@@ -499,11 +502,14 @@ int main(int argc,char **argv)
     geodetic[0] = 0.0;
     geodetic[1] = 0.0;
     geodetic[2] = 0.0;
+
+    // For average filter
     //unsigned long n_of_samples = 0;
 
-    std::vector<double> lat_median_vector;
+    // For median filter
+    /*std::vector<double> lat_median_vector;
     std::vector<double> long_median_vector;
-    std::vector<double> alt_median_vector;
+    std::vector<double> alt_median_vector;*/
 
     ros::Rate r(rate);
     while(ros::ok())
@@ -579,13 +585,26 @@ int main(int argc,char **argv)
 
                     //convert to ECEF and fill ECEF message
                     double ecef[3];
+                    // For average filter
                     //n_of_samples++;
-                    //geodetic[0] = double((n_of_samples-1)/n_of_samples)*geodetic[0] + angles::from_degrees(lat)/n_of_samples;
-                    //geodetic[1] = double((n_of_samples-1)/n_of_samples)*geodetic[1] + angles::from_degrees(longi)/n_of_samples;
-                    //geodetic[2] = double((n_of_samples-1)/n_of_samples)*geodetic[2] + alt/n_of_samples;
-                    geodetic[0] = median(&lat_median_vector, angles::from_degrees(lat));
+                    /*geodetic[0] = double((n_of_samples-1)/n_of_samples)*geodetic[0] + angles::from_degrees(lat)/n_of_samples;
+                    geodetic[1] = double((n_of_samples-1)/n_of_samples)*geodetic[1] + angles::from_degrees(longi)/n_of_samples;
+                    geodetic[2] = double((n_of_samples-1)/n_of_samples)*geodetic[2] + alt/n_of_samples;*/
+
+                    // For median filter
+                    /*geodetic[0] = median(&lat_median_vector, angles::from_degrees(lat));
                     geodetic[1] = median(&long_median_vector, angles::from_degrees(longi));
-                    geodetic[2] = median(&alt_median_vector, alt);
+                    geodetic[2] = median(&alt_median_vector, alt);*/
+
+                    if(geodetic[0] == 0 && geodetic[1] == 0 && geodetic[2] == 0)
+                    {
+                        geodetic[0] = angles::from_degrees(lat);
+                        geodetic[1] = angles::from_degrees(longi);
+                        geodetic[2] = alt;
+                    }
+                    geodetic[0] = (1-a)*geodetic[0] + a * angles::from_degrees(lat);
+                    geodetic[1] = (1-a)*geodetic[1] + a * angles::from_degrees(longi);
+                    geodetic[2] = (1-a)*geodetic[2] + a * alt;
 
                     pos2ecef(geodetic, ecef);
 
