@@ -66,7 +66,7 @@ int main(int argc, char ** argv)
     ROS_INFO("Done.");
 
     ROS_INFO("Subscribing to UTM topic...");
-    ros::Subscriber sub = n.subscribe("base_station/gps/utm", 10, callback);
+    ros::Subscriber sub = n.subscribe("gps/utm", 10, callback);
     ROS_INFO("Done.");
 
     ros::Time start_time = ros::Time::now();

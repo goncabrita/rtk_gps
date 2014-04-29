@@ -66,6 +66,8 @@ include_directories(include ${catkin_INCLUDE_DIRS} ${rtklib_INCLUDE_DIRS} ${cere
 ## Declare a cpp library
 # add_library(rtk_ros src/rtk_ros.cpp )
 
+add_library(UTMConverter src/UTMConverter.cpp)
+
 ## Declare a cpp executable
 # add_executable(rtk_ros_node src/rtk_ros.cpp)
 
@@ -77,6 +79,8 @@ add_executable(rtk_ppp_node src/rtk_ppp_node.cpp)
 
 add_executable(save_ecef_file src/save_ecef_file.cpp)
 add_executable(save_utm_file src/save_utm_file.cpp)
+
+add_executable(save_fixed_position src/save_fixed_position.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -94,6 +98,8 @@ target_link_libraries(rtk_ppp_node ${catkin_LIBRARIES} rtklib)
 
 target_link_libraries(save_ecef_file ${catkin_LIBRARIES})
 target_link_libraries(save_utm_file ${catkin_LIBRARIES})
+
+target_link_libraries(save_fixed_position ${catkin_LIBRARIES} UTMConverter)
 
 #############
 ## Install ##

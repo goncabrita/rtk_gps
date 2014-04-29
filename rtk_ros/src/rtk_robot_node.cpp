@@ -41,6 +41,7 @@
 #include <nav_msgs/Odometry.h>
 #include <std_msgs/ByteMultiArray.h>
 #include <rtk_msgs/Status.h>
+#include <rtk_msgs/UTMCoordinates.h>
 #include <rtk_msgs/ECEFCoordinates.h>
 #include <rtk_ros/UTMConversion.h>
 #include <angles/angles.h>s
@@ -318,6 +319,11 @@ int main(int argc,char **argv)
     double rate;
     pn.param("rate", rate, 2.0);
 
+    bool pub_ecef;
+    pn.param("publish_ecef", pub_ecef, false);
+    bool pub_utm;
+    pn.param("publish_utm", pub_utm, false);
+
     std::string gps_frame_id;
     pn.param<std::string>("gps_frame_id", gps_frame_id, "gps");
 
@@ -329,6 +335,12 @@ int main(int argc,char **argv)
     ros::Publisher gps_pub = nn.advertise<sensor_msgs::NavSatFix>("gps/fix", 50);
     ros::Publisher status_pub = nn.advertise<rtk_msgs::Status>("gps/status", 50);
     ros::Publisher odom_pub = nn.advertise<nav_msgs::Odometry>("gps/odom", 50);
+
+    ros::Publisher utm_pub;
+    if(pub_utm) utm_pub = utm_pub = nn.advertise<rtk_msgs::UTMCoordinates>("gps/utm", 50);
+
+    ros::Publisher ecef_pub;
+    if(pub_ecef) ecef_pub = nn.advertise<rtk_msgs::ECEFCoordinates>("gps/ecef", 50);
 
     ros::Subscriber gps_sub = nn.subscribe("base_station/gps/raw_data", 50, baseStationCallback);
 
@@ -601,6 +613,62 @@ int main(int argc,char **argv)
                     odom_msg.pose.pose.orientation.z = 0;
 
                     odom_pub.publish(odom_msg);
+
+                    if(pub_utm)
+                    {
+                        rtk_msgs::UTMCoordinates utm_msg;
+                        utm_msg.header.stamp = now;
+                        utm_msg.header.frame_id = gps_frame_id;
+
+                        utm_msg.position.x = easting;
+                        utm_msg.position.y = northing;
+                        utm_msg.position.z = alt;
+                        utm_msg.zone_letter = zone_letter;
+                        utm_msg.zone_number = zone_number;
+
+                        utm_msg.position_covariance[0] = sde;
+                        utm_msg.position_covariance[1] = sdne;
+                        utm_msg.position_covariance[2] = sdeu;
+                        utm_msg.position_covariance[3] = sdne;
+                        utm_msg.position_covariance[4] = sdn;
+                        utm_msg.position_covariance[5] = sdun;
+                        utm_msg.position_covariance[6] = sdeu;
+                        utm_msg.position_covariance[7] = sdun;
+                        utm_msg.position_covariance[8] = sdu;
+
+                        utm_pub.publish(utm_msg);
+                    }
+
+                    if(pub_ecef)
+                    {
+                        double geodetic[3];
+                        geodetic[0] = angles::from_degrees(lat);
+                        geodetic[1] = angles::from_degrees(longi);
+                        geodetic[2] = alt;
+
+                        double ecef[3];
+                        pos2ecef(geodetic, ecef);
+
+                        rtk_msgs::ECEFCoordinates ecef_msg;
+                        ecef_msg.header.stamp = now;
+                        ecef_msg.header.frame_id = gps_frame_id;
+
+                        ecef_msg.position.x = ecef[0];
+                        ecef_msg.position.y = ecef[1];
+                        ecef_msg.position.z = ecef[2];
+
+                        ecef_msg.position_covariance[0] = sde;
+                        ecef_msg.position_covariance[1] = sdne;
+                        ecef_msg.position_covariance[2] = sdeu;
+                        ecef_msg.position_covariance[3] = sdne;
+                        ecef_msg.position_covariance[4] = sdn;
+                        ecef_msg.position_covariance[5] = sdun;
+                        ecef_msg.position_covariance[6] = sdeu;
+                        ecef_msg.position_covariance[7] = sdun;
+                        ecef_msg.position_covariance[8] = sdu;
+
+                        ecef_pub.publish(ecef_msg);
+                    }
                 }
             }
             else
