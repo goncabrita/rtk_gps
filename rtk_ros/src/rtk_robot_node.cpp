@@ -285,8 +285,12 @@ int main(int argc,char **argv)
     ros::NodeHandle pn("~");
 
     ros::Subscriber ecef_sub;
-    if(pn.getParam("base_position/x", ecef_base_station.position.x) && pn.getParam("base_position/y", ecef_base_station.position.y) && pn.getParam("base_position/z", ecef_base_station.position.z))
+    if(pn.hasParam("base_position/x") && pn.hasParam("base_position/y") && pn.hasParam("base_position/z"))
     {
+        pn.getParam("base_position/x", ecef_base_station.position.x);
+        pn.getParam("base_position/y", ecef_base_station.position.y);
+        pn.getParam("base_position/z", ecef_base_station.position.z);
+
         ROS_INFO("RTK -- Loading base station parameters from the parameter server...");
 
         XmlRpc::XmlRpcValue position_covariance;
