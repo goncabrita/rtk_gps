@@ -90,7 +90,7 @@ add_executable(save_fixed_position src/save_fixed_position.cpp)
 # target_link_libraries(rtklib_node
 #   ${catkin_LIBRARIES}
 # )
-target_link_libraries(rtk_robot_node ${catkin_LIBRARIES} rtklib)
+target_link_libraries(rtk_robot_node ${catkin_LIBRARIES} rtklib UTMConverter)
 
 target_link_libraries(rtk_base_station_node ${catkin_LIBRARIES} cereal_port)
 

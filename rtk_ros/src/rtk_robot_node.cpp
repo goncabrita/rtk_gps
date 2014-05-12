@@ -43,7 +43,7 @@
 #include <rtk_msgs/Status.h>
 #include <rtk_msgs/UTMCoordinates.h>
 #include <rtk_msgs/ECEFCoordinates.h>
-#include <rtk_ros/UTMConversion.h>
+#include <rtk_ros/UTMConverter.h>
 #include <angles/angles.h>s
 
 #define BUFFSIZE 32768
@@ -285,16 +285,16 @@ int main(int argc,char **argv)
     ros::NodeHandle pn("~");
 
     ros::Subscriber ecef_sub;
-    if(pn.hasParam("base_position/x") && pn.hasParam("base_position/y") && pn.hasParam("base_position/z"))
+    if(pn.hasParam("/base_position/x") && pn.hasParam("/base_position/y") && pn.hasParam("/base_position/z"))
     {
-        pn.getParam("base_position/x", ecef_base_station.position.x);
-        pn.getParam("base_position/y", ecef_base_station.position.y);
-        pn.getParam("base_position/z", ecef_base_station.position.z);
+        pn.getParam("/base_position/x", ecef_base_station.position.x);
+        pn.getParam("/base_position/y", ecef_base_station.position.y);
+        pn.getParam("/base_position/z", ecef_base_station.position.z);
 
         ROS_INFO("RTK -- Loading base station parameters from the parameter server...");
 
         XmlRpc::XmlRpcValue position_covariance;
-        if( pn.getParam("base_position/covariance", position_covariance) )
+        if( pn.getParam("/base_position/covariance", position_covariance) )
         {
             ROS_ASSERT(position_covariance.getType() == XmlRpc::XmlRpcValue::TypeArray);
 
@@ -338,7 +338,7 @@ int main(int argc,char **argv)
 
     ros::Publisher gps_pub = nn.advertise<sensor_msgs::NavSatFix>("gps/fix", 50);
     ros::Publisher status_pub = nn.advertise<rtk_msgs::Status>("gps/status", 50);
-    ros::Publisher odom_pub = nn.advertise<nav_msgs::Odometry>("gps/odom", 50);
+    //ros::Publisher odom_pub = nn.advertise<nav_msgs::Odometry>("gps/odom", 50);
 
     ros::Publisher utm_pub;
     if(pub_utm) utm_pub = utm_pub = nn.advertise<rtk_msgs::UTMCoordinates>("gps/utm", 50);
@@ -459,6 +459,7 @@ int main(int argc,char **argv)
             for(i-- ; i>=0 ; i--) strclose(server.stream+i);
             ROS_FATAL("RTK -- Failed to initialize rtklib server - failed to open all streams!");
             ROS_BREAK();
+            
         }
         
         /* set initial time for rtcm and raw */
@@ -563,6 +564,10 @@ int main(int argc,char **argv)
             nav_msgs::Odometry odom_msg;
             odom_msg.header.stamp = now;
             odom_msg.header.frame_id = gps_frame_id;
+	    
+	    //odom_msg.header.frame_id = "bas;
+	    //odom_msg.child_frame_id = "base_footprint";
+	    
 
             if(server.rtk.sol.stat != SOLQ_NONE)
             {
@@ -606,9 +611,20 @@ int main(int argc,char **argv)
                     char zone_letter;
                     int zone_number;
 
-                    GPStoUTM(angles::from_degrees(lat), angles::from_degrees(longi), northing, easting, zone_number, zone_letter);
+                    sensor_msgs::NavSatFix fix;
+                    fix.latitude = lat;
+                    fix.longitude = longi;
+                    fix.altitude = alt;
 
-                    odom_msg.pose.pose.position.x = easting;
+                    UTMCoordinates utm;
+                    UTMConverter::latitudeAndLongitudeToUTMCoordinates(fix, utm);
+
+                    easting = utm.easting;
+                    northing = utm.northing;
+                    zone_letter = utm.hemisphere;
+                    zone_number = utm.grid_zone;
+
+                    /*odom_msg.pose.pose.position.x = easting;
                     odom_msg.pose.pose.position.y = northing;
                     odom_msg.pose.pose.position.z = alt;
                     odom_msg.pose.pose.orientation.w = 1;
@@ -616,7 +632,15 @@ int main(int argc,char **argv)
                     odom_msg.pose.pose.orientation.y = 0;
                     odom_msg.pose.pose.orientation.z = 0;
 
-                    odom_pub.publish(odom_msg);
+                    double cov[] = {0.001, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                    0.0, 0.001, 0.0, 0.0, 0.0, 0.0,
+                                    0.0, 0.0, 500, 0.0, 0.0, 0.0,
+                                    0.0, 0.0, 0.0, 99999, 0.0, 0.0,
+                                    0.0, 0.0, 0.0, 0.0, 99999, 0.0,
+                                    0.0, 0.0, 0.0, 0.0, 0.0, 99999};
+                    for(int i=0 ; i<36 ; i++) odom_msg.pose.covariance[i] = cov[i];
+
+                    odom_pub.publish(odom_msg);*/
 
                     if(pub_utm)
                     {
