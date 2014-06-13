@@ -4,7 +4,7 @@ project(rtk_ros)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED roscpp sensor_msgs std_msgs rtk_msgs rtklib cereal_port angles)
+find_package(catkin REQUIRED roscpp sensor_msgs std_msgs rtk_msgs rtklib cereal_port angles zeromq_catkin)
 
 ## System dependencies are found with CMake's conventions
 find_package(Boost REQUIRED COMPONENTS thread)
@@ -51,7 +51,7 @@ find_package(Boost REQUIRED COMPONENTS thread)
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES UTMConverter
-#  CATKIN_DEPENDS other_catkin_pkg
+  CATKIN_DEPENDS zeromq_catkin
 #  DEPENDS system_lib
 )
 
@@ -81,6 +81,8 @@ add_executable(save_ecef_file src/save_ecef_file.cpp)
 add_executable(save_utm_file src/save_utm_file.cpp)
 
 add_executable(save_fixed_position src/save_fixed_position.cpp)
+add_executable(pubsubtester src/pubsubtester.cpp)
+
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -92,7 +94,8 @@ add_executable(save_fixed_position src/save_fixed_position.cpp)
 # )
 target_link_libraries(rtk_robot_node ${catkin_LIBRARIES} rtklib UTMConverter)
 
-target_link_libraries(rtk_base_station_node ${catkin_LIBRARIES} cereal_port)
+target_link_libraries(rtk_base_station_node ${catkin_LIBRARIES} cereal_port zeromq_catkin)
+target_link_libraries(pubsubtester ${catkin_LIBRARIES} zeromq_catkin)
 
 target_link_libraries(rtk_ppp_node ${catkin_LIBRARIES} rtklib)
 

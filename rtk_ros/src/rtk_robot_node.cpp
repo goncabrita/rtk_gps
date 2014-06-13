@@ -35,6 +35,7 @@
 * Author: Goncalo Cabrita and Jorge Fraga on 13/06/2013
 *********************************************************************/
 
+#include <boost/thread.hpp>
 #include <rtklib/rtklib.h>
 #include <ros/ros.h>
 #include <sensor_msgs/NavSatFix.h>
@@ -44,7 +45,9 @@
 #include <rtk_msgs/UTMCoordinates.h>
 #include <rtk_msgs/ECEFCoordinates.h>
 #include <rtk_ros/UTMConverter.h>
-#include <angles/angles.h>s
+#include <angles/angles.h>
+#include <zeromq_cpp/zmq.hpp>
+
 
 #define BUFFSIZE 32768
 
@@ -57,25 +60,28 @@ rtksvr_t server;
 
 rtk_msgs::ECEFCoordinates ecef_base_station;
 
+zmq::socket_t * zBroadcastqueue;
+
+
 void baseStationCallback(const std_msgs::ByteMultiArray::ConstPtr& msg)
 {
     int n = msg->data.size();
-	
+
     unsigned char *p = server.buff[RTK_BASE_STATION]+server.nb[RTK_BASE_STATION];
     unsigned char *q = server.buff[RTK_BASE_STATION]+server.buffsize;
 
     if(server.nb[RTK_BASE_STATION] + n < server.buffsize)
     {
-	for(int i=0 ; i<n ; i++)
-	{
-	    *(server.buff[RTK_BASE_STATION] + server.nb[RTK_BASE_STATION] + i) = msg->data[i];
-	}
-	server.nb[RTK_BASE_STATION] += n;
+        for(int i=0 ; i<n ; i++)
+        {
+            *(server.buff[RTK_BASE_STATION] + server.nb[RTK_BASE_STATION] + i) = msg->data[i];
+        }
+        server.nb[RTK_BASE_STATION] += n;
 
-	/* write receiver raw/rtcm data to log stream */
+        /* write receiver raw/rtcm data to log stream */
         strwrite(server.stream+6, p, n);
         server.nb[RTK_BASE_STATION] += n;
-            
+
         /* save peek buffer */
         rtksvrlock(&server);
         n = n < server.buffsize - server.npb[RTK_BASE_STATION] ? n : server.buffsize - server.npb[RTK_BASE_STATION];
@@ -85,10 +91,50 @@ void baseStationCallback(const std_msgs::ByteMultiArray::ConstPtr& msg)
     }
 }
 
+
+void baseStationCallbackthread()
+{
+
+    ROS_INFO("BasestationCallBackThread started");
+
+    while(true){
+
+        zmq::message_t zMessage;
+        zBroadcastqueue->recv(&zMessage);
+
+        int n = zMessage.size();
+
+        unsigned char *p = server.buff[RTK_BASE_STATION]+server.nb[RTK_BASE_STATION];
+        unsigned char *q = server.buff[RTK_BASE_STATION]+server.buffsize;
+
+        if(server.nb[RTK_BASE_STATION] + n < server.buffsize)
+        {
+
+            memcpy(server.buff[RTK_BASE_STATION] + server.nb[RTK_BASE_STATION],zMessage.data(),n);
+
+            server.nb[RTK_BASE_STATION] += n;
+
+            /* write receiver raw/rtcm data to log stream */
+            strwrite(server.stream+6, p, n);
+            server.nb[RTK_BASE_STATION] += n;
+
+            /* save peek buffer */
+            rtksvrlock(&server);
+            n = n < server.buffsize - server.npb[RTK_BASE_STATION] ? n : server.buffsize - server.npb[RTK_BASE_STATION];
+            memcpy(server.pbuf[RTK_BASE_STATION] + server.npb[RTK_BASE_STATION], p, n);
+            server.npb[RTK_BASE_STATION] += n;
+            rtksvrunlock(&server);
+        }
+
+
+    }
+}
+
+
 void ecefCallback(const rtk_msgs::ECEFCoordinates::ConstPtr& msg)
 {
     ecef_base_station = *msg;
-    
+
     server.rtk.opt.rb[0] = msg->position.x;
     server.rtk.opt.rb[1] = msg->position.y;
     server.rtk.opt.rb[2] = msg->position.z;
@@ -112,12 +158,12 @@ static void updatesvr(rtksvr_t *svr, int ret, obs_t *obs, nav_t *nav, int sat,
     gtime_t tof;
     double pos[3],del[3]={0},dr[3];
     int i,n=0,prn,sbssat=svr->rtk.opt.sbassatsel;
-    
+
     if (ret==1) { /* observation data */
         if (iobs<MAXOBSBUF) {
             for (i=0;i<obs->n;i++) {
                 if (svr->rtk.opt.exsats[obs->data[i].sat-1]==1||
-                    !(satsys(obs->data[i].sat,NULL)&svr->rtk.opt.navsys)) continue;
+                        !(satsys(obs->data[i].sat,NULL)&svr->rtk.opt.navsys)) continue;
                 svr->obs[index][iobs].data[n]=obs->data[i];
                 svr->obs[index][iobs].data[n++].rcv=index+1;
             }
@@ -133,7 +179,7 @@ static void updatesvr(rtksvr_t *svr, int ret, obs_t *obs, nav_t *nav, int sat,
                 eph2=svr->nav.eph+sat-1;
                 eph3=svr->nav.eph+sat-1+MAXSAT;
                 if (eph2->ttr.time==0||
-                    (timediff(eph1->toe,eph2->toe)>0.0&&eph1->iode!=eph2->iode)) {
+                        (timediff(eph1->toe,eph2->toe)>0.0&&eph1->iode!=eph2->iode)) {
                     *eph3=*eph2;
                     *eph2=*eph1;
                     updatenav(&svr->nav);
@@ -142,18 +188,18 @@ static void updatesvr(rtksvr_t *svr, int ret, obs_t *obs, nav_t *nav, int sat,
             svr->nmsg[index][1]++;
         }
         else {
-           if (!svr->navsel||svr->navsel==index+1) {
-               geph1=nav->geph+prn-1;
-               geph2=svr->nav.geph+prn-1;
-               geph3=svr->nav.geph+prn-1+MAXPRNGLO;
-               if (geph2->tof.time==0||
-                   (timediff(geph1->toe,geph2->toe)>0.0&&geph1->iode!=geph2->iode)) {
-                   *geph3=*geph2;
-                   *geph2=*geph1;
-                   updatenav(&svr->nav);
-               }
-           }
-           svr->nmsg[index][6]++;
+            if (!svr->navsel||svr->navsel==index+1) {
+                geph1=nav->geph+prn-1;
+                geph2=svr->nav.geph+prn-1;
+                geph3=svr->nav.geph+prn-1+MAXPRNGLO;
+                if (geph2->tof.time==0||
+                        (timediff(geph1->toe,geph2->toe)>0.0&&geph1->iode!=geph2->iode)) {
+                    *geph3=*geph2;
+                    *geph2=*geph1;
+                    updatenav(&svr->nav);
+                }
+            }
+            svr->nmsg[index][6]++;
         }
     }
     else if (ret==3) { /* sbas message */
@@ -232,13 +278,13 @@ static int decoderaw(rtksvr_t *svr, int index)
     sbsmsg_t *sbsmsg=NULL;
 
     int i,ret,sat,fobs=0;
-    
+
     tracet(4,"decoderaw: index=%d\n",index);
-    
+
     rtksvrlock(svr);
-    
+
     for (i=0;i<svr->nb[index];i++) {
-        
+
         /* input rtcm/receiver raw data from stream */
         if (svr->format[index]==STRFMT_RTCM2) {
             ret=input_rtcm2(svr->rtcm+index,svr->buff[index][i]);
@@ -262,16 +308,16 @@ static int decoderaw(rtksvr_t *svr, int index)
         }
         /* update rtk server */
         if (ret>0) updatesvr(svr,ret,obs,nav,sat,sbsmsg,index,fobs);
-        
+
         /* observation data received */
         if(ret==1) {
             if (fobs<MAXOBSBUF) fobs++; else svr->prcout++;
         }
     }
     svr->nb[index]=0;
-    
+
     rtksvrunlock(svr);
-    
+
     return fobs;
 }
 
@@ -321,7 +367,7 @@ int main(int argc,char **argv)
     }
 
     double rate;
-    pn.param("rate", rate, 2.0);
+    pn.param("rate", rate, 10.0);
 
     bool pub_ecef;
     pn.param("publish_ecef", pub_ecef, false);
@@ -346,7 +392,7 @@ int main(int argc,char **argv)
     ros::Publisher ecef_pub;
     if(pub_ecef) ecef_pub = nn.advertise<rtk_msgs::ECEFCoordinates>("gps/ecef", 50);
 
-    ros::Subscriber gps_sub = nn.subscribe("base_station/gps/raw_data", 50, baseStationCallback);
+    //ros::Subscriber gps_sub = nn.subscribe("base_station/gps/raw_data", 50, baseStationCallback);
 
     int n;
 
@@ -355,12 +401,12 @@ int main(int argc,char **argv)
 
     if(server.state)
     {
-	ROS_FATAL("RTK -- Failed to initialize rtklib server!");
-	ROS_BREAK();
+        ROS_FATAL("RTK -- Failed to initialize rtklib server!");
+        ROS_BREAK();
     }
 
     gtime_t time, time0 = {0};
-    
+
     int format[] = {STRFMT_UBX, STRFMT_UBX, STRFMT_RTCM2};
 
     prcopt_t options = prcopt_default;
@@ -394,21 +440,21 @@ int main(int argc,char **argv)
     {
         server.nb[i] = server.npb[i] = 0;
         if(!(server.buff[i]=(unsigned char *)malloc(BUFFSIZE)) || !(server.pbuf[i]=(unsigned char *)malloc(BUFFSIZE)))
-	{
+        {
             ROS_FATAL("RTK -- Failed to initialize rtklib server - malloc error!");
             ROS_BREAK();
         }
         for(int j=0 ; j<10 ; j++) server.nmsg[i][j] = 0;
         for(int j=0 ; j<MAXOBSBUF ; j++) server.obs[i][j].n = 0;
-        
+
         /* initialize receiver raw and rtcm control */
         init_raw(server.raw + i);
         init_rtcm(server.rtcm + i);
-        
+
         /* set receiver option */
         strcpy(server.raw[i].opt, "");
         strcpy(server.rtcm[i].opt, "");
-        
+
         /* connect dgps corrections */
         server.rtcm[i].dgps = server.nav.dgps;
     }
@@ -416,7 +462,7 @@ int main(int argc,char **argv)
     for(int i=0 ; i<2 ; i++)
     {
         if (!(server.sbuf[i]=(unsigned char *)malloc(BUFFSIZE)))
-	{
+        {
             ROS_FATAL("RTK -- Failed to initialize rtklib server - malloc error!");
             ROS_BREAK();
         }
@@ -428,16 +474,16 @@ int main(int argc,char **argv)
     sol_options[1] = solopt_default;
 
     for(int i=0 ; i<2 ; i++) server.solopt[i] = sol_options[i];
-    
+
     /* set base station position */
     for(int i=0 ; i<6 ; i++) server.rtk.rb[i] = i < 3 ? options.rb[i] : 0.0;
-    
+
     /* update navigation data */
     for(int i=0 ; i<MAXSAT*2 ; i++) server.nav.eph[i].ttr = time0;
     for(int i=0 ; i<NSATGLO*2 ; i++) server.nav.geph[i].tof = time0;
     for(int i=0 ; i<NSATSBS*2 ; i++) server.nav.seph[i].tof = time0;
     updatenav(&server.nav);
-    
+
     /* set monitor stream */
     server.moni = NULL;
 
@@ -447,48 +493,48 @@ int main(int argc,char **argv)
     sprintf(gps_path, "%s:%d:8:n:1:off", port.c_str(), baudrate);
     char * paths[] = {gps_path, "localhost:27015", "", "", "", "", "", ""};
     char * cmds[] = {"", "", ""};
-    
+
     int rw;
     for(int i=0 ; i<8 ; i++)
     {
         rw = i < 3 ? STR_MODE_R : STR_MODE_W;
-	if(stream_type[i] != STR_FILE) rw |= STR_MODE_W;
+        if(stream_type[i] != STR_FILE) rw |= STR_MODE_W;
         if(!stropen(server.stream+i, stream_type[i], rw, paths[i]))
-	{
+        {
             ROS_ERROR("RTK -- Failed to open stream %s", paths[i]);
             for(i-- ; i>=0 ; i--) strclose(server.stream+i);
             ROS_FATAL("RTK -- Failed to initialize rtklib server - failed to open all streams!");
             ROS_BREAK();
-            
+
         }
-        
+
         /* set initial time for rtcm and raw */
         if(i<3)
-	{
+        {
             time = utc2gpst(timeget());
             server.raw[i].time = stream_type[i] == STR_FILE ? strgettime(server.stream+i) : time;
             server.rtcm[i].time = stream_type[i] == STR_FILE ? strgettime(server.stream+i) : time;
         }
     }
-    
+
     /* sync input streams */
     strsync(server.stream, server.stream+1);
     strsync(server.stream, server.stream+2);
-    
+
     /* write start commands to input streams */
     for(int i=0 ; i<3 ; i++)
     {
         if(cmds[i]) strsendcmd(server.stream+i, cmds[i]);
     }
-    
+
     /* write solution header to solution streams */
     for(int i=3 ; i<5 ; i++)
     {
-	unsigned char buff[1024];
-    	int n;
-    
-    	n = outsolheads(buff, server.solopt+i-3);
-    	strwrite(server.stream+i, buff, n);
+        unsigned char buff[1024];
+        int n;
+
+        n = outsolheads(buff, server.solopt+i-3);
+        strwrite(server.stream+i, buff, n);
     }
     //********************************************************
 
@@ -502,6 +548,25 @@ int main(int argc,char **argv)
 
     server.tick = tickget();
 
+    //**************ZEROMQ**************************************/
+    /*node parameters*/
+    std::string zSocket;
+
+    if (!nn.getParam("/basestation_address", zSocket))
+    {
+        ROS_FATAL("RTK -- Failed to get basestation_address!!!");
+        ROS_BREAK();
+    }
+
+    zmq::context_t zContext(1);
+    zBroadcastqueue = new zmq::socket_t(zContext, ZMQ_SUB);
+    zBroadcastqueue->connect(zSocket.c_str());
+    zBroadcastqueue->setsockopt(ZMQ_SUBSCRIBE, "", 0);
+
+    boost::thread basestationThread(baseStationCallbackthread);
+
+    //**************ZEROMQ**************************************/
+
     ROS_DEBUG("RTK -- Initialization complete.");
 
     ros::Rate r(rate);
@@ -511,7 +576,7 @@ int main(int argc,char **argv)
 
         unsigned char *p = server.buff[RTK_ROBOT]+server.nb[RTK_ROBOT];
         unsigned char *q = server.buff[RTK_ROBOT]+server.buffsize;
-        
+
         ROS_DEBUG("RTK -- Getting data from GPS...");
         /* read receiver raw/rtcm data from input stream */
         n = strread(server.stream, p, q-p);
@@ -545,7 +610,7 @@ int main(int argc,char **argv)
             {
                 obs.data[obs.n++] = server.obs[1][0].data[j];
             }
-	    
+
             ROS_DEBUG("RTK -- Calculating RTK positioning...");
             /* rtk positioning */
             rtksvrlock(&server);
@@ -564,21 +629,21 @@ int main(int argc,char **argv)
             nav_msgs::Odometry odom_msg;
             odom_msg.header.stamp = now;
             odom_msg.header.frame_id = gps_frame_id;
-	    
-	    //odom_msg.header.frame_id = "bas;
-	    //odom_msg.child_frame_id = "base_footprint";
-	    
+
+            //odom_msg.header.frame_id = "bas;
+            //odom_msg.child_frame_id = "base_footprint";
+
 
             if(server.rtk.sol.stat != SOLQ_NONE)
             {
                 /* adjust current time */
                 tt = (int)(tickget()-tick)/1000.0+DTTOL;
                 timeset(gpst2utc(timeadd(server.rtk.sol.time,tt)));
-                
+
                 /* write solution */
                 unsigned char buff[1024];
                 n = outsols(buff, &server.rtk.sol, server.rtk.rb, server.solopt);
-        	
+
                 if(n==141 && buff[0]>'0' && buff[0]<'9')
                 {
                     int ano,mes,dia,horas,minutos,Q,nsat;
@@ -714,6 +779,9 @@ int main(int argc,char **argv)
         ros::spinOnce();
         r.sleep();
     }
+
+    basestationThread.join();
+    delete zBroadcastqueue;
 
     return(0);
 }

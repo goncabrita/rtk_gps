@@ -38,63 +38,99 @@
 #include <ros/ros.h>
 #include <cereal_port/CerealPort.h>
 #include <std_msgs/ByteMultiArray.h>
+#include <cstdlib>
+#include <zeromq_cpp/zmq.hpp>
 
 int main(int argc, char ** argv)
 {
-	ros::init(argc, argv, "rtk_base_station");
+    ros::init(argc, argv, "rtk_base_station");
 
-	ROS_INFO("RTKlib for ROS Base Station Edition");
+    ROS_INFO("RTKlib for ROS Base Station Edition");
 
-	ros::NodeHandle n;
-	ros::NodeHandle pn("~");
+    ros::NodeHandle n;
+    ros::NodeHandle pn("~");
 
-    	std::string port;
-    	pn.param<std::string>("port", port, "/dev/ttyACM1");
-	int baudrate;
-	pn.param("baudrate", baudrate, 115200);
+    /*get ROS_IP or ROS_HOSTNAME*/
+    char* basestationaddress;
+    basestationaddress = getenv ("ROS_HOSTNAME");
+    if (basestationaddress==NULL){
+        basestationaddress = getenv ("ROS_IP");
 
-	cereal::CerealPort serial_gps;
-		
-    	try{ serial_gps.open(port.c_str(), baudrate); }
-	catch(cereal::Exception& e)
-    	{
-        	ROS_FATAL("RTK -- Failed to open the serial port!!!");
-        	ROS_BREAK();
-    	}
+        if (basestationaddress==NULL){
+            ROS_FATAL("RTK -- Failed to get basestation hostname/ip !!!");
+            ROS_BREAK();
+        }
+    }
 
-	char buffer[350];
-	int count;
-	
-	buffer[108]=0;
-	buffer[0]='l';
-	buffer[1]='s';
-	buffer[2]='e';
-	buffer[3]=1;
+    ROS_INFO("RTK -- Basestation Hostname/IP: %s" ,basestationaddress) ;
 
-    	ros::Publisher pub = n.advertise<std_msgs::ByteMultiArray>("base_station/gps/raw_data", 100);
+    /*node parameters*/
+    std::string port;
+    int socket_port; // zmq socket port
+    int baudrate;
+    pn.param<std::string>("port", port, "/dev/ttyACM0");
+    pn.param<int>("socket_port", socket_port, 45000);
+    pn.param("baudrate", baudrate, 115200);
 
-	ROS_INFO("RTK -- Streaming data...");
+    std::stringstream tempstream;
+    tempstream << "tcp://" << basestationaddress<<":"<<socket_port;
+    n.setParam("/basestation_address", tempstream.str());
 
-	while(ros::ok())
-	{
-        	try{ count = serial_gps.read(buffer, 300, 1000); }
-		catch(cereal::TimeoutException& e)
-		{
-		    ROS_WARN("RTK -- Failed to get data from GPS!");
-		}
 
-		std_msgs::ByteMultiArray raw_msg;
-		
-        	for(int i=0 ; i<count ; i++)
-		{
-			raw_msg.data.push_back(buffer[i]);
-		}
-		
-		pub.publish(raw_msg);
-		ros::Duration(0.1).sleep();	
-	}				
-	
-	return 0;
+    /*zeromq*/
+    zmq::context_t zContext(1);
+    zmq::socket_t zBroadcastQueue(zContext, ZMQ_PUB);
+    zBroadcastQueue.bind(tempstream.str().c_str());
+
+    cereal::CerealPort serial_gps;
+
+    try{ serial_gps.open(port.c_str(), baudrate); }
+    catch(cereal::Exception& e)
+    {
+        ROS_FATAL("RTK -- Failed to open the serial port!!!");
+        ROS_BREAK();
+    }
+
+    char buffer[350];
+    int count;
+
+    buffer[108]=0;
+    buffer[0]='l';
+    buffer[1]='s';
+    buffer[2]='e';
+    buffer[3]=1;
+
+
+
+    //ros::Publisher pub = n.advertise<std_msgs::ByteMultiArray>("base_station/gps/raw_data", 100);
+
+    ROS_INFO("RTK -- Streaming data...");
+
+    while(ros::ok())
+    {
+        try{
+         count = serial_gps.read(buffer, 300, 200); }
+        catch(cereal::TimeoutException& e)
+        {
+            //ROS_WARN("RTK -- Failed to get data from GPS!");
+        }
+
+        /*std_msgs::ByteMultiArray raw_msg;
+
+        for(int i=0 ; i<count ; i++)
+        {
+            raw_msg.data.push_back(buffer[i]);
+        }
+
+        pub.publish(raw_msg);*/
+
+        zmq::message_t data((void*)buffer,count,NULL,NULL); //zero copy
+        zBroadcastQueue.send(data);
+
+        ros::Duration(0.1).sleep();
+    }
+
+    return 0;
 }
 
 // EOF
