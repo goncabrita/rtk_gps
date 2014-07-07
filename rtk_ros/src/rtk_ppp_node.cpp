@@ -51,63 +51,6 @@
 
 #define DLL
 
-/*#define MAX_MEDIAN_VECTOR_SIZE  1024
-
-double median(std::vector<double> *values, double new_value=0.0)
-{
-  double median;
-  size_t size = values->size();
-
-  if(size < MAX_MEDIAN_VECTOR_SIZE)
-  {
-      values->push_back(new_value);
-      if(values->size() == 1) return new_value;
-  }
-  else
-  {
-      std::sort(values->begin(), values->end());
-      if(new_value > *values->begin() && new_value < *values->end())
-      {
-          if(size % 2 == 0)
-          {
-              median = (values->at(size / 2 - 1) + values->at(size / 2)) / 2;
-          }
-          else
-          {
-              median = values->at(size / 2);
-          }
-
-          if(new_value < median)
-          {
-              values->erase(values->begin());
-          }
-          else if(new_value > median)
-          {
-              values->erase(values->end());
-          }
-          else
-          {
-              values->erase(values->begin());
-              values->erase(values->end());
-          }
-          values->push_back(new_value);
-      }
-  }
-
-  std::sort(values->begin(), values->end());
-  if(size % 2 == 0)
-  {
-      median = (values->at(size / 2 - 1) + values->at(size / 2)) / 2;
-  }
-  else
-  {
-      median = values->at(size / 2);
-  }
-
-  return median;
-}*/
-
-
 rtksvr_t server;
 
 void baseStationCallback(const std_msgs::ByteMultiArray::ConstPtr& msg)
@@ -360,9 +303,9 @@ int main(int argc,char **argv)
     int format[] = {STRFMT_UBX, STRFMT_UBX, STRFMT_RTCM2};
 
     prcopt_t options = prcopt_default;
-    options.mode = PMODE_PPP_FIXED;
+    options.mode = PMODE_PPP_STATIC;
     options.nf = 1;
-    options.navsys = SYS_GPS | SYS_SBS;
+    options.navsys = SYS_ALL; //SYS_GPS | SYS_SBS;
     options.modear = 3;
     options.glomodear = 0;
     options.minfix = 3;
@@ -585,26 +528,12 @@ int main(int argc,char **argv)
 
                     //convert to ECEF and fill ECEF message
                     double ecef[3];
-                    // For average filter
-                    //n_of_samples++;
-                    /*geodetic[0] = double((n_of_samples-1)/n_of_samples)*geodetic[0] + angles::from_degrees(lat)/n_of_samples;
-                    geodetic[1] = double((n_of_samples-1)/n_of_samples)*geodetic[1] + angles::from_degrees(longi)/n_of_samples;
-                    geodetic[2] = double((n_of_samples-1)/n_of_samples)*geodetic[2] + alt/n_of_samples;*/
-
-                    // For median filter
-                    /*geodetic[0] = median(&lat_median_vector, angles::from_degrees(lat));
-                    geodetic[1] = median(&long_median_vector, angles::from_degrees(longi));
-                    geodetic[2] = median(&alt_median_vector, alt);*/
-
                     if(geodetic[0] == 0 && geodetic[1] == 0 && geodetic[2] == 0)
                     {
                         geodetic[0] = angles::from_degrees(lat);
                         geodetic[1] = angles::from_degrees(longi);
                         geodetic[2] = alt;
                     }
-                    geodetic[0] = (1-a)*geodetic[0] + a * angles::from_degrees(lat);
-                    geodetic[1] = (1-a)*geodetic[1] + a * angles::from_degrees(longi);
-                    geodetic[2] = (1-a)*geodetic[2] + a * alt;
 
                     pos2ecef(geodetic, ecef);
 
